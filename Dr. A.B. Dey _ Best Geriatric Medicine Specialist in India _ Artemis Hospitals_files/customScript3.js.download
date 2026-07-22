@@ -1,0 +1,501 @@
+// menue part
+function showmynav() {
+  $("#customnav").toggleClass("kk");
+  $("#overlaymenue").toggleClass("showoverly");
+}
+
+var newElement = $("#mainmenukul").clone();
+$("#mainmenukultoadd").append(newElement);
+
+$(document).ready(function () {
+  $(".searchicons").click(function () {
+    $(".searchli").addClass("showsearchpp");
+    $(".search-close").addClass("showsearchicon");
+    $(".searchicons").addClass("search-iconv");
+  });
+  $(".search-close").click(function () {
+    $(".searchli").removeClass("showsearchpp");
+    $(".search-close").removeClass("showsearchicon");
+    $(".searchicons").removeClass("search-iconv");
+  });
+});
+
+$(".closebtn").on("click", function () {
+  $("#customnav").removeClass("kk");
+  $(".navbar .collapse").collapse("hide");
+  $("#overlaymenue").removeClass("showoverly");
+});
+
+function toggleReadMore(event) {
+  event.preventDefault();
+  const readMore = document.getElementById("readMore");
+  const fullText = document.getElementById("fullText");
+
+  // Check if full text is currently visible
+  if (fullText.style.display === "none") {
+    fullText.style.display = "block";
+    readMore.style.display = "none";
+  } else {
+    fullText.style.display = "none";
+    readMore.style.display = "inline-block";
+  }
+}
+
+function toggleReadMore123(event) {
+  event.preventDefault();
+  const readMore = document.getElementById("readMore");
+  const fullText = document.getElementById("fulltextDesc");
+
+  // Check if full text is currently visible
+  if (fullText.style.display === "none") {
+    fullText.style.display = "block";
+    readMore.style.display = "none";
+  } else {
+    fullText.style.display = "none";
+    readMore.style.display = "inline-block";
+  }
+}
+
+function toggleReadMore2(event) {
+  event.preventDefault();
+  const readMore = document.getElementById("readMore2");
+  const fullText = document.getElementById("fulltextDesc2");
+
+  // Check if full text is currently visible
+  if (fullText.style.display === "none") {
+    fullText.style.display = "block";
+    readMore.style.display = "none";
+  } else {
+    fullText.style.display = "none";
+    readMore.style.display = "inline-block";
+    $(".uptop").show();
+  }
+}
+
+$(document).ready(function () {
+  //toggle the component with class accordion_body
+  $(".accordion_head").click(function () {
+    $(this).removeClass("coll-back");
+    if ($(".accordion_body").is(":visible")) {
+      $(".accordion_body").slideUp(300);
+      $(".plusminus").text("+");
+      $(this).removeClass("coll-back");
+      $(".rmv-cls").removeClass("coll-back");
+    }
+
+    if ($(this).next(".accordion_body").is(":visible")) {
+      $(this).next(".accordion_body").slideUp(300);
+      $(this).children(".plusminus").text("+");
+      $(this).removeClass("coll-back");
+    } else {
+      $(this).next(".accordion_body").slideDown(300);
+      $(this).children(".plusminus").text("");
+      $(this).children(".plusminus").append('<hr class="hr-clc">');
+      $(this).toggleClass("coll-back");
+      $(this).addClass("rmv-cls");
+    }
+  });
+});
+
+// foote menue
+$(document).ready(function () {
+  function toggleNav(toggleId, targetId, hideMinusSelector = null) {
+    $(toggleId).click(function () {
+      // Hide all other menus
+      $(".showfooterul").not(targetId).removeClass("showfooterul");
+      $(targetId).toggleClass("showfooterul");
+
+      // Remove 'hideminus' class from all except the current hideMinusSelector
+      $(".hideminus").not(hideMinusSelector).removeClass("hideminus");
+
+      // Toggle 'hideminus' class on the current hideMinusSelector, if provided
+      if (hideMinusSelector) {
+        $(hideMinusSelector).toggleClass("hideminus");
+      }
+    });
+  }
+
+  toggleNav("#togglenav1", "#togglenav-1", "#togglenav1 .hideminus1");
+  toggleNav("#togglenav2", "#togglenav-2", "#togglenav2 .hideminus1");
+  toggleNav("#togglenav3", "#togglenav-3", "#togglenav3 .hideminus1");
+  toggleNav("#togglenav4", "#togglenav-4", "#togglenav4 .hideminus1");
+  toggleNav("#togglenav6", "#togglenav-6", "#togglenav6 .hideminus1");
+  toggleNav("#togglenav12", "#togglenav-12", "#togglenav12 .hideminus1");
+});
+
+$("#ourCentres").owlCarousel({
+  loop: true,
+  margin: 20,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 2,
+      margin: 2,
+    },
+    480: {
+      items: 2,
+    },
+    568: {
+      items: 2,
+    },
+    768: {
+      items: 3,
+    },
+    991: {
+      items: 3,
+    },
+    1024: {
+      items: 3,
+    },
+    1200: {
+      items: 4,
+    },
+    1400: {
+      items: 5,
+    },
+  },
+});
+
+$("#centres2").owlCarousel({
+  loop: true,
+  margin: 20,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+      margin: 10,
+    },
+    480: {
+      items: 5,
+      margin: 10,
+    },
+    568: {
+      items: 5,
+    },
+    768: {
+      items: 5,
+    },
+    991: {
+      items: 5,
+    },
+    1024: {
+      items: 8,
+    },
+    1200: {
+      items: 5,
+    },
+    1400: {
+      items: 5,
+    },
+  },
+});
+
+$("#technology").owlCarousel({
+  loop: true,
+  margin: 0,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+    480: {
+      items: 2,
+    },
+    568: {
+      items: 2,
+    },
+    768: {
+      items: 2,
+    },
+    991: {
+      items: 3,
+    },
+    1024: {
+      items: 3,
+    },
+    1200: {
+      items: 4,
+    },
+    1400: {
+      items: 4,
+    },
+  },
+});
+
+$("#ventures").owlCarousel({
+  loop: true,
+  margin: 0,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+    480: {
+      items: 2,
+    },
+    568: {
+      items: 2,
+    },
+    768: {
+      items: 2,
+    },
+    991: {
+      items: 3,
+    },
+    1024: {
+      items: 3,
+    },
+    1200: {
+      items: 4,
+    },
+    1400: {
+      items: 4,
+    },
+  },
+});
+
+$("#awards").owlCarousel({
+  loop: true,
+  margin: 20,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+    600: {
+      items: 2,
+    },
+    1000: {
+      items: 4,
+      margin: 30,
+    },
+  },
+});
+
+$("#centres").owlCarousel({
+  loop: true,
+  margin: 20,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 3,
+      margin: 10,
+    },
+    480: {
+      items: 4,
+      margin: 10,
+    },
+    568: {
+      items: 4,
+    },
+    768: {
+      items: 5,
+    },
+    991: {
+      items: 7,
+    },
+    1024: {
+      items: 8,
+    },
+    1200: {
+      items: 10,
+    },
+    1400: {
+      items: 11,
+    },
+  },
+});
+
+$("#youtvideo").owlCarousel({
+  loop: true,
+  margin: 20,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+    480: {
+      items: 1,
+    },
+    568: {
+      items: 2,
+    },
+    768: {
+      items: 2,
+    },
+    991: {
+      items: 2,
+    },
+    1024: {
+      items: 3,
+    },
+    1200: {
+      items: 3,
+    },
+    1400: {
+      items: 3,
+    },
+  },
+});
+
+$("#newsUpdates").owlCarousel({
+  loop: true,
+  margin: 20,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+    480: {
+      items: 1,
+    },
+    568: {
+      items: 2,
+    },
+    768: {
+      items: 2,
+    },
+    991: {
+      items: 2,
+    },
+    1024: {
+      items: 3,
+    },
+    1200: {
+      items: 3,
+    },
+    1400: {
+      items: 3,
+    },
+  },
+});
+
+$("#healthInsights").owlCarousel({
+  loop: true,
+  margin: 50,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+
+    568: {
+      items: 2,
+    },
+    768: {
+      items: 2,
+    },
+    991: {
+      items: 2,
+    },
+    1024: {
+      items: 3,
+    },
+    1200: {
+      items: 3,
+    },
+    1400: {
+      items: 3,
+    },
+  },
+});
+
+$("#ourDoctors").owlCarousel({
+  loop: false,
+  rewind: true,
+  margin: 20,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  items: 3,
+  responsive: {
+    0: {
+      items: 1,
+    },
+
+    568: {
+      items: 2,
+    },
+    768: {
+      items: 2,
+    },
+    1000: {
+      items: 3,
+    },
+  },
+});
+
+$("#whyChooseArtemis").owlCarousel({
+  loop: true,
+  margin: 30,
+  nav: true,
+  pagination: false,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+
+    568: {
+      items: 2,
+    },
+    768: {
+      items: 3,
+    },
+    1000: {
+      items: 4,
+    },
+  },
+});
+
+$("#newsUpdatesnew").owlCarousel({
+  items: 1,
+  margin: 30,
+  // adds left + right padding
+  loop: false,
+  nav: true,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+  },
+});
+
+$("#rareCases").owlCarousel({
+  items: 2,
+  margin: 30,
+  // adds left + right padding
+  loop: false,
+  nav: true,
+  responsiveClass: true,
+  responsive: {
+    0: {
+      items: 1,
+    },
+    768: {
+      items: 1,
+    },
+    1000: {
+      items: 1,
+    },
+  },
+});

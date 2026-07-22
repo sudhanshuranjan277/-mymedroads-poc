@@ -1,0 +1,96 @@
+{
+    "hospital": {
+        "name": "Artemis Hospitals",
+        "id": 1
+    },
+
+    "base_url": "https://www.artemishospitals.com",
+
+    "urls": {
+        "home": "https://www.artemishospitals.com/",
+        "about": "https://www.artemishospitals.com/about-us/for-patients",
+        "doctor_listing": "https://www.artemishospitals.com/doctors",
+        "doctor_profile_prefix": "https://www.artemishospitals.com"
+    },
+
+    "request": {
+        "timeout": 30,
+        "retry": 3,
+        "delay": 1,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    },
+
+    "selectors": {
+
+        "hospital": {
+
+            "name": "",
+
+            "overview": "",
+
+            "address": "",
+
+            "phone": "",
+
+            "email": "",
+
+            "website": "",
+
+            "beds": "",
+
+            "accreditations": "",
+
+            "centres_of_excellence": "",
+
+            "international_patients": "",
+
+            "awards": "",
+
+            "images": ""
+        },
+
+        "doctor_list": {
+
+            "card": "",
+
+            "name": "",
+
+            "profile_url": "",
+
+            "image": ""
+        },
+
+        "doctor_profile": {
+
+            "name": "",
+
+            "designation": "",
+
+            "department": "",
+
+            "speciality": "",
+
+            "qualification": "",
+
+            "experience": "",
+
+            "expertise": "",
+
+            "procedures": "",
+
+            "memberships": "",
+
+            "languages": "",
+
+            "publications": "",
+
+            "awards": "",
+
+            "summary": "",
+
+            "photo": "",
+
+            "consultation_location": ""
+        }
+    }
+}

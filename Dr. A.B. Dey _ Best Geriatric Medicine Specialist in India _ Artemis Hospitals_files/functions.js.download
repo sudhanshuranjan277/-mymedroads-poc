@@ -1,0 +1,528 @@
+jQuery(function ($) {
+
+    // -- Sessie openhouden: --
+    setInterval(function () {
+        $.post('/');
+    }, 600000);
+
+    // -- Checkt of prettyPhoto is geladen. Zo niet, dan wordt prettyPhoto ook niet gebruikt! --
+    if ($.fn.prettyPhoto) {
+        $("a[rel^='prettyPhoto']").prettyPhoto();
+    }
+
+    if ($.fn.magnificPopup) {
+        $("a[rel^='lightbox']").magnificPopup({
+            type: 'image', gallery: {
+                // options for gallery
+                enabled: true
+            }
+        });
+    }
+    // prevent default enter action (enter drukken = zoeken)
+    $('input').keydown(function (e) {
+        if (e.which == 13) {
+            event.preventDefault();
+            return false;
+        }
+    });
+    // enter actie terugzetten voor minisearch in layout:
+    $('.MiniSearch_Default input').keydown(function (e) {
+        if (e.which == 13) {
+            $('.MiniSearch_Default input.button').click();
+            return true;
+        }
+    });
+    // enter actie terugzetten voor search (pagina):
+    $('.Search_Default input').keydown(function (e) {
+        if (e.which == 13) {
+            $('.Search_Default input.button').click();
+        }
+    });
+    // enter actie terugzetten search doctors in list of doctors
+    $('.ArtemisSearchInDoctors_Default input[type=text]').keydown(function (e) {
+        if (e.which == 13) {
+            $('.name-or-specialty').change();
+        }
+    });
+
+    // -- Newslists/sliders home: --
+
+    // titel in contentvak zetten bij slider
+    $('.NewsList_Custom1 .titlediv').each(function (index, value) {
+        var $content = $(this).parent().find('.content');
+        $(this).prependTo($content);
+    });
+    // hele blok klikbaar maken
+    $(".NewsList_Custom1 .content").each(function () {
+        $(this).click(function (e) {
+            if (e.button == 0) {
+                document.location.href = $(this).find("a.morelink").attr("href");
+            }
+        });
+    });
+
+    // testimonials titel onder bericht:
+    $('.NewsList_Custom4 .titlediv').each(function (index, value) {
+        var $content = $(this).parent().find('.content');
+        $(this).appendTo($content);
+    });
+
+    // cycle slider home
+    if ($.fn.cycle) {
+        $('.home .NewsList_Custom1')
+            .prepend('<div class="cycle-pager"></div><a class="prevnext" id="prev"><span></span></a><a class="prevnext" id="next"><span></span></a>')
+            .cycle({
+                fx: 'fade',
+                slides: '.block',
+                speed: 0,
+                timeout: 7000,
+                fluid: false,
+                swipe: true,
+                prev: "#prev",
+                next: "#next"
+            });
+    } //einde cycle
+    // mouse hover fade in pijltjes
+    $('.home .NewsList_Custom1').hover(
+        function () {
+            $('.prevnext').finish().fadeIn(400);
+        }, function () {
+            $('.prevnext').fadeOut(300);
+        }
+    );
+
+    // -- Hoofdmenu --
+    // hoverIntent
+    (function (e) {
+        e.fn.hoverIntent = function (t, n, r) {
+            var i = { interval: 100, sensitivity: 7, timeout: 0 };
+            if (typeof t === "object") {
+                i = e.extend(i, t)
+            } else if (e.isFunction(n)) {
+                i = e.extend(i, { over: t, out: n, selector: r })
+            } else {
+                i = e.extend(i, { over: t, out: t, selector: n })
+            }
+            var s, o, u, a;
+            var f = function (e) {
+                s = e.pageX;
+                o = e.pageY
+            };
+            var l = function (t, n) {
+                n.hoverIntent_t = clearTimeout(n.hoverIntent_t);
+                if (Math.abs(u - s) + Math.abs(a - o) < i.sensitivity) {
+                    e(n).off("mousemove.hoverIntent", f);
+                    n.hoverIntent_s = 1;
+                    return i.over.apply(n, [t])
+                } else {
+                    u = s;
+                    a = o;
+                    n.hoverIntent_t = setTimeout(function () {
+                        l(t, n)
+                    }, i.interval)
+                }
+            };
+            var c = function (e, t) {
+                t.hoverIntent_t = clearTimeout(t.hoverIntent_t);
+                t.hoverIntent_s = 0;
+                return i.out.apply(t, [e])
+            };
+            var h = function (t) {
+                var n = $.extend({}, t);
+                var r = this;
+                if (r.hoverIntent_t) {
+                    r.hoverIntent_t = clearTimeout(r.hoverIntent_t)
+                }
+                if (t.type == "mouseenter") {
+                    u = n.pageX;
+                    a = n.pageY;
+                    e(r).on("mousemove.hoverIntent", f);
+                    if (r.hoverIntent_s != 1) {
+                        r.hoverIntent_t = setTimeout(function () {
+                            l(n, r)
+                        }, i.interval)
+                    }
+                } else {
+                    e(r).off("mousemove.hoverIntent", f);
+                    if (r.hoverIntent_s == 1) {
+                        r.hoverIntent_t = setTimeout(function () {
+                            c(n, r)
+                        }, i.timeout)
+                    }
+                }
+            };
+            return this.on({ "mouseenter.hoverIntent": h, "mouseleave.hoverIntent": h }, i.selector)
+        }
+    })($)
+
+    // menu uitklappen
+    if ($(window).width() > 1024) {
+        $(".navbar .menu > li").hoverIntent({
+            sensitivity: 2, // number = sensitivity threshold (must be 1 or higher)
+            interval: 30, // number = milliseconds of polling interval
+            over: function () {
+                $('.level1').fadeOut(0);
+                $('.level1', this).slideDown(350);
+                $(this).addClass('hovered');
+            },
+            timeout: 200, // number = milliseconds delay before onMouseOut function call
+            out: function () {
+                $('.level1', this).slideUp(250);
+                $(this).removeClass('hovered');
+            }
+        });
+    }
+    else {
+        $(".navbar .menu > li > a").click(function () {
+            if ($(this).parents('li').hasClass('hovered')) {
+                return;
+            }
+            $('.level1').fadeOut(0);
+            $(this).next('.level1').slideDown(350);
+            $(this).parents('li').addClass('hovered');
+        });
+    }
+
+    // externe urls krijgen target blank:
+    $('.home .inner a').filter(function () {
+        return this.hostname && this.hostname !== location.hostname;
+    }).attr("target", "_blank");
+
+    // photo gallery (folder gallery control) scroll top
+    $('.Controls_Multimedia_FolderGallery_Default .thumb').click(function () {
+        $("html, body").animate({ scrollTop: 320 }, 600);
+    });
+
+
+    // Date picker Miscellaneous
+
+
+    $selectMsg = $('.please-select');
+
+    $('.years').hide();
+    $('.years ul').hide();
+    $selectMsg.hide();
+
+
+    $('.date-picker.year li').on('click', function () {
+
+        // hide all visible/active divs
+        $('.years').hide();
+
+        // remove active classes
+        $('.year li.selected').removeClass('selected')
+        $('.years.isVisible').removeClass('isVisible');
+
+        // highlight clicked button
+        $(this).addClass('selected');
+
+        // get value of clicked item
+        $yearSelected = $(this).text();
+
+        // show selected stuff
+        $('span.selectedYear').text($yearSelected);
+        $('.year-' + $yearSelected).show().addClass('isVisible');
+
+
+        $selectMsg.text('Please select a month to view items');
+        $selectMsg.show();
+
+
+    });
+
+    $('.date-picker.month li').on('click', function () {
+        $('.month li.selected').removeClass('selected')
+        $(this).addClass('selected');
+        $monthSelected = $(this).text();
+        $('span.selectedmonth').text($monthSelected);
+        $('.years ul').hide();
+        $('.years ul.' + $monthSelected).show();
+        $selectMsg.hide();
+    }
+    );
+    $(".Menu_Default .menu").wrap('<nav class="nav-collapse"></nav>');
+
+    // ================================================
+    // Responsive menu
+    // ================================================
+    var $navbar = $('.navbar');
+    var $menuToggle = $('.mobile-menu-toggle');
+    var $menuCheckbox = $('#menu-checkbox');
+
+    function checkMenuState() {
+
+        setTimeout(function () {
+
+            if ($menuCheckbox.is(':checked')) {
+                setTimeout(function () {
+                    $navbar.addClass('open');
+                });
+                $menuToggle
+                        .addClass('close');
+                $('body').addClass('overlay');
+                $('div.NewsList_Custom1')
+                        .cycle('pause');
+                return;
+            }
+
+            $navbar
+                    .removeClass('open');
+            $menuToggle
+                    .removeClass('close');
+            setTimeout(function () {
+                $('body')
+                        .removeClass('overlay');
+            }, 200);
+            $('div.NewsList_Custom1')
+                    .cycle('resume');
+        }
+        );
+
+    } checkMenuState();
+
+    $menuToggle.click(function () {
+        checkMenuState();
+    });
+
+    // Append close button for menu dropdown (iPad)
+    $('<li class="close-menu" />')
+        .prependTo('.subGroup.level1');
+
+    $('.close-menu').click(function () {
+        $(this).parents('.subGroup')
+            .slideUp(250);
+        $(this).parents('.menuitem')
+            .removeClass('hovered');
+        $('.menulink')
+            .removeClass('first-click');
+    });
+
+    // Cloned elements for the mobile menu
+    $('.mainheader .MiniSearch_Default')
+        .clone()
+        .prependTo('.menu', $navbar)
+        .wrap('<li class="menuitem cloned" />');
+
+    $('.mainheader .LanguageSelector_Default')
+        .clone()
+        .appendTo('.menu', $navbar)
+        .wrap('<li class="menuitem cloned" />');
+
+    $('.mainheader .patientportal')
+        .clone()
+        .appendTo('.menu', $navbar)
+        .wrap('<li class="menuitem cloned" />');
+
+    // Remove first click events for the menu on tablets and phones
+    if ($(window).width() <= 1024) {
+
+        $('.haschilds > a', $navbar).click(function (e) {
+            if ($(this).hasClass('first-click')) {
+                return;
+            }
+            $('.haschilds a')
+                .removeClass('first-click');
+            $(this)
+                .addClass('first-click');
+            e.preventDefault();
+        });
+
+    }
+
+    /* ===============================================================
+    Show a notice if there are no doctors
+    available for the current alphabet character
+    =============================================================== */
+    var $AlphabeticalOrdering = $('[class*="AlphabeticalOrdering"]');
+    if ($AlphabeticalOrdering.length) {
+        $('.char', $AlphabeticalOrdering).each(function () {
+            href = $(this).find('a').attr('href');
+            if (!$(href).length) {
+                $(this).addClass('no-items');
+            }
+            else {
+                $(this).find('a').addClass('scroll-anchor');
+            }
+        });
+
+        var AlphaOrderingOffset = $AlphabeticalOrdering.offset().top;
+        var Hdrhgt = $('.BrdrTop').innerHeight();
+        var tothgt = Hdrhgt;
+        $(window).scroll(function () {
+            if ($(this).scrollTop() > 50) {
+                $AlphabeticalOrdering.addClass('fixed');
+                $AlphabeticalOrdering.css('top', 0);
+                $('.innerDiv .TopCls').css('top', 0);
+            }
+            else {
+                $AlphabeticalOrdering.removeClass('fixed');
+                $AlphabeticalOrdering.css('top', '');
+                $('.innerDiv .TopCls').css('top', '')
+            }
+        });
+
+        $('<span class="char__notice">No specialities found for this letter.</span>').prependTo($AlphabeticalOrdering);
+
+        $('.char', $AlphabeticalOrdering).click(function (e) {
+            $('.char__notice').fadeOut(100);
+            if ($(this).hasClass('no-items')) {
+                $('.char__notice').fadeIn(100);
+            }
+        });
+    }
+
+    var anchor = document.getElementsByClassName('scroll-anchor');
+    $(anchor).click(function (e) {
+        var elementToScrollTo = $(this).attr('href');
+        var Hdrhgt2 = $('.BrdrTop').innerHeight();
+        var TbBtnSct = $('.AlphabeticalOrdering_Default').innerHeight();
+        var TbBxHdngHgt = $('.character-container').innerHeight();
+        var TbBxTxtPragHgt = $('.specialty-container').innerHeight();
+        var TotlTbHgt = Hdrhgt2 + TbBtnSct;
+        var ContHgt = TbBxHdngHgt + TbBxTxtPragHgt;
+        var allHgt = ContHgt + TotlTbHgt;
+        e.preventDefault();        
+        if ($('.AlphabeticalOrdering_Default').hasClass('fixed')) {
+            $('html, body').stop().animate({
+                scrollTop: $(elementToScrollTo).offset().top - allHgt + 90
+            }, { duration: 1000 });
+        }
+        else {
+            $('html, body').stop().animate({
+                scrollTop: $(elementToScrollTo).offset().top - allHgt - 160
+            }, { duration: 1000 });
+        }
+
+    });
+
+});
+
+
+var pgurl = location.pathname.split('/')[1];
+$(".menulink").each(function () {
+   if ($(this).attr("href") == '/' + pgurl) {
+       $(this).parent('li').addClass("selectedli");
+       //alert('done')
+   }
+});
+
+
+ // Tinku Kumar 
+
+ $(window).scroll(function() {
+    var height = $(window).scrollTop();
+    if (height > 30) {
+        $(".BrdrTop").addClass('SrcllFix');
+     } else {
+        $(".BrdrTop").removeClass('SrcllFix');
+     }
+});
+
+
+   // $('.InvPdfSec').slideUp();
+
+       // $('.HedSec').click(function(){
+       //     var $this = $(this);
+       //     $('.InvPdfSec').slideUp(350);
+       //      $('.HedSec').removeClass('SlideOpenUp'); 
+       //      // $this.next().removeClass('show');
+       //     $(this).removeClass('SlideOpenUp');
+       //     if ($this.next().hasClass('show')) {
+       //         $this.next().removeClass('show');
+       //         $this.next().slideUp(350);
+       //         $('.InvPdfSec').removeClass('show');
+       //         $('.HedSec').removeClass('SlideOpenUp');
+       //     } else {
+       //      $this.next().toggleClass('show');
+       //      $this.next().slideDown(350);
+       //      $this.toggleClass('SlideOpenUp');
+       //      // $('.InvPdfSec').removeClass('show');
+       //     }
+       // });
+
+
+
+$('.ArowClose').click(function(){
+    $('.BkAppoint').slideUp('slow'); 
+});
+
+$('.MngnOpntb').click(function () {
+    var tab_img = $(this).attr('data-mg');
+
+    $('.MngnOpntb').removeClass('currentGal');
+    $('.tab-galcontent').removeClass('currentGal');
+    $('.gal_pop_in').fadeIn('gal_pop_inAdd');
+    $('.inn_midto').stop().animate({
+        'opacity': '1'
+    })
+
+    $(this).addClass('currentGal');
+    $("#" + tab_img).addClass('currentGal');
+})
+$(window).scroll(function () {
+    $(window).scrollTop() >= 20 ? $(".blog_mainbkn").addClass("blog_mainbkn_fix") : $(".blog_mainbkn").removeClass("blog_mainbkn_fix")
+})
+//jQuery(function ($) {
+//    var path = window.location.href.substr(window.location.href.lastIndexOf("/") + 1);
+//    $('#description22 li').each(function () {
+//        if (this.href === path) {
+//            $(this).addClass('blogLstActv');
+//        }
+//    });
+//});
+$(document).ready(function () {
+    var pathname = window.location.pathname;
+    $('#description22 > li > a[href="' + pathname + '"]').parent().addClass('blogLstActv');
+ 
+    $(".close-popup").click(function(){
+     
+        $(".popup-wrapper").hide();
+      });
+    
+})
+$('.gal_innwrp').click(function () {
+    var tab_idg = $(this).attr('data-tb');
+
+    $('.gal_innwrp').removeClass('currentGal');
+    $('.tab-galcontent').removeClass('currentGal');
+    $('.gal_pop_in').fadeIn('gal_pop_inAdd');
+    $('.inn_midto').stop().animate({
+        'opacity': '1'
+    })
+
+    $(this).addClass('currentGal');
+    $("#" + tab_idg).addClass('currentGal');
+    })
+$('.close').click(function () {
+    $('.gal_pop_in').fadeOut('gal_pop_inAdd');
+    $('.inn_midto').stop().animate({
+        'opacity': '0'
+    })
+});
+// $('.InvestToggle:nth-child(3)').each(function () {
+//     alert();
+//     $(this).insertBefore($(this).prev('.InvestToggle'));
+// });
+$('.slidrGall').owlCarousel({
+    margin: 30,
+    autoplay: false,
+    dots: false,
+    animateIn: 'fadeIn',
+    animateOut: 'fadeOut',
+    nav: true,
+    navText: ["<i class='left'></i>", "<i class='right'></i>"],
+    responsive: {
+        0: {
+            items: 1,
+            nav: true,
+            dots: false
+        },
+        768: {
+            items: 1
+        },
+        1170: {
+            items: 1
+        }
+    }
+});
+
