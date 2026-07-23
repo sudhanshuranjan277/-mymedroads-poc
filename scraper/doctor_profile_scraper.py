@@ -14,6 +14,16 @@ def clean(text):
         return ""
     return " ".join(text.replace("\xa0", " ").split())
 
+def clean_markdown(text):
+
+    if not text:
+        return ""
+
+    text = text.replace("|", "")
+    text = text.replace("\n", " ")
+
+    return " ".join(text.split())
+
 
 def extract_jsonld_fields_via_regex(raw_text):
     """
@@ -522,28 +532,46 @@ def scrape_doctor_profile(profile_url):
     # EXPERIENCE
     # -------------------------
 
-    result["experience"] = get_from_parsed(parsed, "work experience", "experience", "years of experience")
-
+    result["experience"] = get_field(
+    soup,
+    [
+        "Years of Experience",
+        "Experience",
+        "Work Experience",
+        "Total Experience",
+        "Professional Experience"
+    ]
+)
     if not result["experience"]:
+        result["experience"] = ""
+    
+    
+    experience_match = re.search(
+    r"(\d+\+?\s*(?:years|yrs))",
+    result["experience"],
+    re.IGNORECASE
+)
+    
+    if experience_match:
 
-        result["experience"] = get_field(soup, [
-            "Years of Experience",
-            "Experience",
-            "Work Experience",
-            "Total Experience",
-            "Professional Experience"
-        ])
+        result["experience"] = clean(
+        experience_match.group(1)
+    )
+    else:
+        experience_match = re.search(
+        r"(\d+\+?\s*(?:years|yrs))",
+        text,
+        re.IGNORECASE
+    )
+        if experience_match:
+            
 
-    if not result["experience"]:
-
-        m = re.search(
-            r"(\d+\+?\s*years?\s*(of\s+)?(experience)?)",
-            text,
-            re.IGNORECASE
+            result["experience"] = clean(
+            experience_match.group(1)
         )
-
-        if m:
-            result["experience"] = clean(m.group(1))
+        else:
+            result["experience"] = ""
+            
 
     # -------------------------
     # LANGUAGES
@@ -588,26 +616,27 @@ def scrape_doctor_profile(profile_url):
     # PROCEDURES PERFORMED
     # -------------------------
 
-    result["procedures_performed"] = get_from_parsed(
-        parsed, "procedures performed", "procedures"
+    result["procedures_performed"] = clean_markdown(
+        get_field(
+            soup,
+            [    
+        "procedures performed",
+        "key procedures",
+            "surgical procedures",
+        "procedures"]
     )
-
-    if not result["procedures_performed"]:
-
-        result["procedures_performed"] = get_field(soup, [
-            "Procedures Performed",
-            "Key Procedures",
-            "Surgical Procedures",
-            "Procedures"
-        ])
-
+)
     # -------------------------
     # PROFESSIONAL MEMBERSHIPS
     # -------------------------
 
-    result["professional_memberships"] = get_from_parsed(
-        parsed, "memberships", "professional memberships", "membership"
+    result["professional_memberships"] = clean_markdown(
+    get_from_parsed(
+        parsed,
+        "professional memberships",
+        "memberships"
     )
+)
 
     if not result["professional_memberships"]:
 

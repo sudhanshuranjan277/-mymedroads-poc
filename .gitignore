@@ -13,3 +13,7 @@ venv/
 
 output/
 logs/
+
+# Temporary scraping/debug files
+find_api.py
+download_js.py

@@ -1,36 +1,190 @@
-def validate(doctors_data):
+def check_field(data, field):
     """
-    Basic validation for scraped doctor data.
+    Check whether a field is available in records.
+    """
+
+    for item in data:
+
+        value = item.get(field, "")
+
+        if not value or str(value).strip() == "":
+            return False
+
+    return True
+
+
+
+def validate(hospital_data, doctors_data):
+    """
+    Validate hospital and doctor scraped data.
     """
 
     print("\n========== Validation Report ==========")
 
-    total = len(doctors_data)
-    print(f"Total Doctors: {total}")
 
-    # Duplicate name check
-    names = [d.get("doctor_name", "").strip() for d in doctors_data]
+    # =====================================
+    # DOCTOR VALIDATION
+    # =====================================
 
-    duplicates = len(names) - len(set(names))
+    print("\nDOCTOR VALIDATION")
+    print("-----------------")
 
-    if duplicates == 0:
-        print("✅ No duplicate doctor names found.")
+
+    total_doctors = len(doctors_data)
+
+    print(
+        f"Total Doctors        : {total_doctors}"
+    )
+
+
+    # Duplicate doctor names
+
+    names = [
+        doctor.get("doctor_name", "").strip()
+        for doctor in doctors_data
+        if doctor.get("doctor_name")
+    ]
+
+
+    duplicate_names = len(names) - len(set(names))
+
+
+    print(
+        f"Duplicate Names      : {duplicate_names}"
+    )
+
+
+    # Missing doctor names
+
+    missing_names = sum(
+        1
+        for doctor in doctors_data
+        if not doctor.get("doctor_name")
+    )
+
+
+    print(
+        f"Missing Names        : {missing_names}"
+    )
+
+
+    # Missing profile URL
+
+    missing_profile = sum(
+        1
+        for doctor in doctors_data
+        if not doctor.get("profile_url")
+    )
+
+
+    print(
+        f"Missing Profile URL  : {missing_profile}"
+    )
+
+
+    # =====================================
+    # FIELD CHECK
+    # =====================================
+
+    print("\n\nFIELD CHECK")
+    print("-----------")
+
+
+    required_fields = [
+
+        "doctor_name",
+        "designation",
+        "department",
+        "qualification",
+        "summary"
+
+    ]
+
+
+    for field in required_fields:
+
+
+        status = check_field(
+            doctors_data,
+            field
+        )
+
+
+        if status:
+
+            result = "PASS"
+
+        else:
+
+            result = "PARTIAL"
+
+
+        print(
+            f"{field:<20}: {result}"
+        )
+
+
+
+    # =====================================
+    # HOSPITAL VALIDATION
+    # =====================================
+
+    print("\n\nHOSPITAL VALIDATION")
+    print("-------------------")
+
+
+    if hospital_data:
+
+
+        hospital = hospital_data[0]
+
+
+        required_hospital_fields = [
+
+            "hospital_name",
+            "address",
+            "website"
+
+        ]
+
+
+        for field in required_hospital_fields:
+
+
+            if hospital.get(field):
+
+                result = "PASS"
+
+            else:
+
+                result = "FAIL"
+
+
+            label = field.replace(
+                "_",
+                " "
+            ).title()
+
+
+            print(
+                f"{label:<20}: {result}"
+            )
+
+
     else:
-        print(f"❌ Duplicate doctor names found: {duplicates}")
 
-    # Missing mandatory fields
-    mandatory = ["doctor_name", "specialty", "profile_url"]
+        print(
+            "Hospital Data Missing"
+        )
 
-    missing = 0
 
-    for doctor in doctors_data:
-        for field in mandatory:
-            if not doctor.get(field):
-                missing += 1
 
-    if missing == 0:
-        print("✅ All mandatory fields are present.")
-    else:
-        print(f"⚠ Missing mandatory fields: {missing}")
+    print("\n=======================================")
 
-    print("=======================================\n")
+    print(
+        "Validation Completed Successfully"
+    )
+
+    print(
+        "=======================================\n"
+    )
