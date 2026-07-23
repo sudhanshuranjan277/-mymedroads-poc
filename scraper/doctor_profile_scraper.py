@@ -1,736 +1,1714 @@
+"""
+Artemis Hospital Doctor Profile Scraper
+
+Extracts:
+- Doctor Name
+- Designation
+- Department
+- Specialty
+- Qualification
+- Experience
+- Expertise
+- Procedures
+- Memberships
+- Languages
+- Publications
+- Awards
+- Summary
+- Profile Image
+"""
+
 import json
 import re
+import html
+
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+
+
+
+BASE_URL = "https://www.artemishospitals.com"
 
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0"
+
+    "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+
+    "Accept-Language":
+        "en-US,en;q=0.9"
+
 }
 
 
-def clean(text):
-    if not text:
-        return ""
-    return " ".join(text.replace("\xa0", " ").split())
-
-def clean_markdown(text):
-
-    if not text:
-        return ""
-
-    text = text.replace("|", "")
-    text = text.replace("\n", " ")
-
-    return " ".join(text.split())
+REQUEST_TIMEOUT = 30
+MAX_RETRIES = 3
 
 
-def extract_jsonld_fields_via_regex(raw_text):
-    """
-    Fallback for when the Physician JSON-LD block is malformed (Artemis'
-    site emits an extra trailing '}' on every doctor page, which breaks
-    json.loads). Pulls the fields we need directly with regex instead
-    of relying on the JSON being valid.
-    """
 
-    data = {}
+PROFILE_FIELDS = (
 
-    m = re.search(r'"image"\s*:\s*"([^"]+)"', raw_text)
-    if m:
-        data["profile_photo"] = m.group(1)
+    "hospital_name",
 
-    m = re.search(r'"description"\s*:\s*"([^"]*)"', raw_text)
-    if m:
-        data["summary"] = clean(m.group(1))
+    "doctor_name",
 
-    m = re.search(r'"medicalSpecialty"\s*:\s*"([^"]*)"', raw_text)
-    if m:
-        data["department"] = clean(m.group(1))
+    "designation",
 
-    return data
+    "department",
 
+    "specialty",
 
-def extract_jsonld(soup):
-    """
-    Extract data from JSON-LD (Physician schema block).
-    Gives us: profile_photo, summary, department (as a fallback/cross-check).
-    """
+    "qualification",
 
-    data = {}
+    "experience",
 
-    scripts = soup.find_all("script", type="application/ld+json")
+    "expertise",
 
-    for script in scripts:
+    "procedures_performed",
 
-        raw = script.string or ""
+    "professional_memberships",
 
-        if '"Physician"' not in raw:
-            continue
+    "languages",
 
-        try:
+    "publications",
 
-            obj = json.loads(raw)
+    "awards",
 
-            if isinstance(obj, list):
-                objs = obj
-            else:
-                objs = [obj]
+    "consultation_location",
 
-            for item in objs:
+    "summary",
 
-                if item.get("@type") == "Physician":
+    "profile_photo",
 
-                    data["profile_photo"] = item.get("image", "")
-                    data["summary"] = item.get("description", "")
-                    data["department"] = item.get("medicalSpecialty", "")
-
-                    return data
-
-        except Exception:
-            # The site's Physician JSON-LD block is known to sometimes
-            # have an extra trailing '}', making it invalid JSON.
-            # Pull the fields out directly instead of giving up.
-            fallback = extract_jsonld_fields_via_regex(raw)
-            if fallback:
-                return fallback
-
-    return data
+)
 
 
-# -----------------------------------------------------------------
-# ASP.NET server-control ID based extraction (primary strategy)
-# -----------------------------------------------------------------
-# Artemis Hospitals' doctor profile pages are built on the same
-# ASP.NET WebForms template for every doctor. Fields are rendered
-# by server controls with consistent ID suffixes, e.g.:
-#
-#   <span id="m_d_Content1_LabelSpecialtyValue">Neuroanaesthesia...</span>
-#   <span id="m_d_Content1_LabelLocationValue">Gurugram</span>
-#   <span id="m_d_Content1_LabelLanguagesValue">English, Hindi</span>
-#   <span id="m_d_Content1_LabelContent">Qualifications: ... </span>
-#
-# We match on the ID *suffix* (not the full ID) so this keeps working
-# even if the numeric/control prefix ever changes between pages.
 
-def find_element_by_id_suffix(soup, suffix):
-    return soup.find(id=re.compile(re.escape(suffix) + r"$"))
+CONTENT_LABELS = (
 
-
-def find_text_by_id_suffix(soup, suffix):
-    tag = find_element_by_id_suffix(soup, suffix)
-    return clean(tag.get_text()) if tag else ""
-
-
-# Labels that appear as bold text (e.g. "Qualifications:") inside the
-# single big "Profile" content block. Order doesn't matter for parsing,
-# but this list should cover every variant seen across the site.
-CONTENT_BLOCK_LABELS = [
     "Qualifications",
     "Qualification",
+    "Education",
+    "Educational Qualification",
+    "Academic Qualification",
+    "Medical Education",
+    "Degrees",
+
+    "Brief Profile",
+    "Profile",
+
     "Work Experience",
+    "Professional Experience",
+    "Clinical Experience",
     "Experience",
     "Years of Experience",
+
+    "Areas of Expertise",
+    "Area of Interest",
+    "Clinical Focus",
+    "Special Interest",
+    "Expertise",
+    "Specialization",
+    "Field of Expertise",
+
     "Procedures Performed",
     "Procedures",
-    "Clinical Focus",
-    "Areas of Expertise",
-    "Area of Expertise",
-    "Expertise",
-    "Memberships",
+    "Treatments",
+    "Clinical Procedures",
+
     "Professional Memberships",
+    "Memberships",
     "Membership",
-    "Honors And Awards",
-    "Honours And Awards",
-    "Awards",
+
     "Publications",
     "Research Publications",
+    "Scientific Publications",
+    "Research",
+
+    "Awards",
+    "Honors and Awards",
+    "Honours and Awards",
+    "Achievements",
+
     "Languages",
     "Languages Spoken",
-    "Consultation Timings",
-]
+
+)
 
 
-def parse_profile_content(content_text):
+
+
+
+def normalize_text(text):
+
     """
-    The doctor "Profile" block is one big blob of pasted-from-Word HTML
-    where each subsection is introduced by a bold label like
-    'Qualifications:', 'Work Experience:', 'Memberships:', etc.,
-    instead of separate <h2>/<h3> headings. This splits that blob into
-    a dict keyed by lowercase label -> section text.
-    """
-
-    if not content_text:
-        return {}
-
-    pattern = r"(" + "|".join(re.escape(l) for l in CONTENT_BLOCK_LABELS) + r")\s*:\s*"
-
-    parts = re.split(pattern, content_text, flags=re.IGNORECASE)
-
-    result = {}
-
-    # parts[0] is any preamble before the first label (usually empty/junk)
-    pairs = parts[1:]
-
-    for label, body in zip(pairs[0::2], pairs[1::2]):
-        key = label.strip().lower()
-
-        # Clean each line individually but KEEP the line breaks between
-        # them -- collapsing everything to one line makes it impossible
-        # to later isolate a single line (e.g. a stray publication
-        # mention buried inside the Awards section).
-        lines = [clean(l) for l in body.split("\n")]
-        lines = [l for l in lines if l]
-        value = "\n".join(lines)
-
-        if value:
-            if key not in result:
-                result[key] = value
-            else:
-                result[key] += "\n" + value
-
-    return result
-
-
-def get_from_parsed(parsed, *label_keys):
-    for key in label_keys:
-        val = parsed.get(key.lower())
-        if val:
-            return val
-    return ""
-
-
-# -----------------------------------------------------------------
-# Heading / label based extraction (fallback strategy)
-# -----------------------------------------------------------------
-# Used only when the ID-based / content-block approach above finds
-# nothing for a given field -- e.g. if a page uses a different layout.
-
-def get_section_text(soup, heading):
-
-    heading = heading.lower()
-
-    for tag in soup.find_all(["h2", "h3", "h4", "h5", "h6", "strong", "b", "label", "dt", "th"]):
-
-        title = clean(tag.get_text()).lower()
-
-        if not title:
-            continue
-
-        if heading in title:
-
-            texts = []
-
-            same_line = clean(tag.get_text())
-            m = re.search(r"[:\-]\s*(.+)", same_line)
-            if m and len(m.group(1)) > 1:
-                candidate = clean(m.group(1))
-                if candidate.lower() != title:
-                    texts.append(candidate)
-
-            sibling = tag.find_next_sibling(["dd", "span", "p", "div", "td"])
-            if sibling:
-                txt = clean(sibling.get_text())
-                if txt and txt.lower() != title:
-                    texts.append(txt)
-
-            parent = tag.parent
-
-            if parent:
-
-                for p in parent.find_all(["li", "p", "span", "div", "dd", "td"]):
-
-                    txt = clean(p.get_text())
-
-                    if txt and txt.lower() != title and heading not in txt.lower():
-
-                        texts.append(txt)
-
-            if texts:
-                return "\n".join(dict.fromkeys(texts))
-
-    flat_text = soup.get_text("\n", strip=True)
-    m = re.search(
-        rf"{re.escape(heading)}\s*[:\-]\s*(.+)",
-        flat_text,
-        re.IGNORECASE
-    )
-    if m:
-        candidate = clean(m.group(1))
-        if 0 < len(candidate) < 300:
-            return candidate
-
-    return ""
-
-
-def get_field(soup, keywords):
-    for keyword in keywords:
-        value = get_section_text(soup, keyword)
-        if value:
-            return value
-    return ""
-
-
-# -----------------------------------------------------------------
-# Profile photo extraction
-# -----------------------------------------------------------------
-
-def extract_profile_photo(soup, doctor_name=""):
-    """
-    Priority order:
-    1. og:image / twitter:image meta tags
-    2. <img> whose alt text shares the doctor's name (most reliable
-       on this site -- confirmed the profile photo's alt exactly
-       matches the <h1> doctor name)
-    3. <img> whose class/id/alt/src hints doctor/profile/physician
-    4. First reasonably-sized image that isn't an obvious logo/icon
+    Common text cleaning.
     """
 
-    og = soup.find("meta", property="og:image")
-    if og and og.get("content"):
-        return og["content"]
-
-    twitter = soup.find("meta", attrs={"name": "twitter:image"})
-    if twitter and twitter.get("content"):
-        return twitter["content"]
-
-    candidates = soup.find_all("img")
-
-    if doctor_name:
-        name_words = set(
-            w for w in re.sub(r"\bdr\.?\b", "", doctor_name, flags=re.IGNORECASE).lower().split()
-            if len(w) > 1
-        )
-
-        for img in candidates:
-            alt = (img.get("alt") or "").lower()
-            alt_words = set(alt.split())
-            if name_words and len(alt_words & name_words) >= 2:
-                return img.get("src", "")
-
-    keywords = ["doctor", "physician", "profile", "consultant", "dr-", "dr_"]
-
-    for img in candidates:
-
-        attrs_text = " ".join([
-            img.get("class", [""])[0] if img.get("class") else "",
-            img.get("id", ""),
-            img.get("alt", ""),
-            img.get("src", "")
-        ]).lower()
-
-        if any(k in attrs_text for k in keywords) and "logo" not in attrs_text and "icon" not in attrs_text:
-            return img.get("src", "")
-
-    skip_words = ["logo", "icon", "facebook", "twitter", "instagram", "linkedin", "sprite", "placeholder"]
-
-    for img in candidates:
-
-        src = img.get("src", "")
-
-        if not src:
-            continue
-
-        src_lower = src.lower()
-
-        if any(w in src_lower for w in skip_words):
-            continue
-
-        width = img.get("width")
-        height = img.get("height")
-
-        try:
-            if width and int(width) < 80:
-                continue
-            if height and int(height) < 80:
-                continue
-        except ValueError:
-            pass
-
-        return src
-
-    return ""
+    if not text:
+        return ""
 
 
-# -----------------------------------------------------------------
-# Publications heuristic
-# -----------------------------------------------------------------
-# On several profiles (e.g. Dr. Deepak Solanki) there's no separate
-# "Publications:" label -- a publications line is embedded as a
-# sentence inside the Awards section instead. This pulls it out.
-
-def split_publications_from_awards(awards_text):
-    """
-    Returns (publications_text, awards_text).
-
-    Note: on this site, text pasted from Word often wraps a single
-    sentence across several lines with no punctuation to mark clause
-    boundaries, so a "Journal Publications ..." mention buried inside
-    the Awards blob can't always be cleanly cut out without risking
-    truncating it (or the award text) mid-sentence. When that mention
-    is present we duplicate the full flattened text into Publications
-    rather than risk mangling either field -- safe, if slightly
-    redundant, over losing/breaking real content.
-    """
-
-    if not awards_text or "publication" not in awards_text.lower():
-        return "", awards_text
-
-    flat = clean(awards_text)
-
-    return flat, awards_text
-
-
-def scrape_doctor_profile(profile_url):
-
-    response = requests.get(
-        profile_url,
-        headers=HEADERS,
-        timeout=20
+    value = html.unescape(
+        str(text)
     )
 
-    response.raise_for_status()
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    value = value.replace(
+        "\xa0",
+        " "
+    )
 
-    result = {
 
-        "designation": "",
-        "department": "",
-        "qualification": "",
-        "experience": "",
-        "languages": "",
-        "expertise": "",
-        "procedures_performed": "",
-        "professional_memberships": "",
-        "publications": "",
-        "awards": "",
-        "consultation_location": "",
-        "summary": "",
-        "profile_photo": "",
-        "hospital_name": "Artemis Hospitals"
+    replacements = {
+
+        "Air ForceMedicalCollege":
+            "Air Force Medical College",
+
+        "MedicalCollege":
+            "Medical College",
+
+        "BombayUniversity":
+            "Bombay University",
+
+        "DelhiUniversity":
+            "Delhi University",
+
+        "MedicalCouncil":
+            "Medical Council",
+
+        "ofMedical":
+            "of Medical",
+
+        "years ofexperience":
+            "years of experience"
 
     }
 
+
+    for old, new in replacements.items():
+
+        value = value.replace(
+            old,
+            new
+        )
+
+
+    # 18years -> 18 years
+
+    value = re.sub(
+
+        r"(\d+)years",
+
+        r"\1 years",
+
+        value,
+
+        flags=re.I
+
+    )
+
+
+    value = re.sub(
+
+        r",(?=\S)",
+
+        ", ",
+
+        value
+
+    )
+
+
+    return " ".join(
+        value.split()
+    )
+
+
+
+
+
+def clean(text):
+
+    return normalize_text(text)
+
+
+
+
+
+def clean_department_value(text):
+
+    """
+    Remove unwanted labels.
+    """
+
+    if not text:
+        return ""
+
+
+    remove_values = [
+
+        "Designation:",
+        "Designation",
+
+        "Department:",
+        "Department",
+
+        "Specialty:",
+        "Specialty",
+
+        "Speciality:",
+        "Speciality"
+
+    ]
+
+
+    for item in remove_values:
+
+        text = text.replace(
+            item,
+            ""
+        )
+
+
+    return clean(text)
+
+
+
+
+
+def _clean_name(name):
+
+    """
+    Clean doctor name.
+    """
+
+    if not name:
+
+        return ""
+
+
+    name = clean(name)
+
+
+    name = name.replace(
+        "[Doctor]",
+        ""
+    )
+
+
+    name = re.split(
+
+        r"\s*(?:\||\s-\s|\sat\s)",
+
+        name,
+
+        maxsplit=1,
+
+        flags=re.I
+
+    )[0]
+
+
+    return clean(name)
+
+
+
+
+
+def find_text_by_id_suffix(
+        soup,
+        suffix
+):
+
+    element = soup.find(
+
+        id=re.compile(
+
+            re.escape(suffix) + r"$",
+
+            re.I
+
+        )
+
+    )
+
+
+    if element:
+
+        return clean(
+
+            element.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
+        )
+
+
+    return ""
+
+
+
+
+
+def find_text_by_class(
+        soup,
+        selector
+):
+
+    element = soup.select_one(
+        selector
+    )
+
+
+    if element:
+
+        return clean(
+
+            element.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
+        )
+
+
+    return ""
+
+
+
+
+
+def get_meta(
+        soup,
+        name=None,
+        prop=None
+):
+
+    attrs = (
+
+        {"name": name}
+
+        if name
+
+        else
+
+        {"property": prop}
+
+    )
+
+
+    tag = soup.find(
+        "meta",
+        attrs=attrs
+    )
+
+
+    if tag:
+
+        return clean(
+            tag.get(
+                "content",
+                ""
+            )
+        )
+
+
+    return ""
+
+def extract_jsonld(soup):
+
+    data = {}
+
+
+    for script in soup.find_all(
+        "script",
+        type="application/ld+json"
+    ):
+
+        try:
+
+            payload = json.loads(
+                script.get_text(
+                    strip=True
+                )
+            )
+
+        except Exception:
+
+            continue
+
+
+
+        items = (
+
+            payload
+
+            if isinstance(payload, list)
+
+            else
+
+            [payload]
+
+        )
+
+
+
+        for item in items:
+
+
+            if not isinstance(item, dict):
+
+                continue
+
+
+
+            candidates = []
+
+
+            graph = item.get(
+                "@graph",
+                []
+            )
+
+
+            if isinstance(graph, list):
+
+                candidates.extend(
+                    graph
+                )
+
+
+            candidates.append(
+                item
+            )
+
+
+
+            for candidate in candidates:
+
+
+                if not isinstance(candidate, dict):
+
+                    continue
+
+
+
+                types = candidate.get(
+                    "@type",
+                    []
+                )
+
+
+                if isinstance(types, str):
+
+                    types = [
+                        types
+                    ]
+
+
+
+                if not (
+
+                    "Person" in types
+
+                    or
+
+                    "Physician" in types
+
+                ):
+
+                    continue
+
+
+
+                if candidate.get("name"):
+
+                    data["doctor_name"] = clean(
+                        candidate["name"]
+                    )
+
+
+
+                image = candidate.get(
+                    "image",
+                    ""
+                )
+
+
+                if isinstance(image, dict):
+
+                    image = image.get(
+                        "url",
+                        ""
+                    )
+
+
+
+                if image:
+
+                    data["profile_photo"] = clean(
+                        image
+                    )
+
+
+    return data
+
+
+
+
+
+def fetch_profile_html(
+        profile_url,
+        session=None
+):
+
+    if not profile_url:
+
+        return ""
+
+
+    client = session or requests
+
+
+    url = urljoin(
+        BASE_URL + "/",
+        profile_url
+    )
+
+
+    for attempt in range(
+        1,
+        MAX_RETRIES + 1
+    ):
+
+        try:
+
+            response = client.get(
+
+                url,
+
+                headers=HEADERS,
+
+                timeout=REQUEST_TIMEOUT
+
+            )
+
+
+            response.raise_for_status()
+
+
+            return response.text
+
+
+
+        except requests.RequestException as error:
+
+
+            if attempt == MAX_RETRIES:
+
+                print(
+
+                    "Profile scrape failed:",
+
+                    url,
+
+                    error
+
+                )
+
+
+
+    return ""
+
+
+
+
+
+def _section_text(
+        soup,
+        *keywords
+):
+
+
+    for keyword in keywords:
+
+
+        value = find_text_by_id_suffix(
+
+            soup,
+
+            keyword
+
+        )
+
+
+        if value:
+
+            return value
+
+
+
+        label = soup.find(
+
+            string=re.compile(
+
+                rf"^\s*{re.escape(keyword)}\s*:?\s*$",
+
+                re.I
+
+            )
+
+        )
+
+
+        if label:
+
+
+            parent = label.parent
+
+
+            if parent:
+
+
+                sibling = parent.find_next_sibling()
+
+
+                target = sibling or parent
+
+
+                value = clean(
+
+                    target.get_text(
+
+                        " ",
+
+                        strip=True
+
+                    )
+
+                )
+
+
+                if value.lower() != keyword.lower():
+
+                    return value
+
+
+
+    return ""
+
+
+
+
+
+def _content_sections(soup):
+
+
+    content = find_text_by_id_suffix(
+
+        soup,
+
+        "LabelContent"
+
+    )
+
+
+    if not content:
+
+        return {}
+
+
+
+    labels = "|".join(
+
+        re.escape(label)
+
+        for label in CONTENT_LABELS
+
+    )
+
+
+
+    parts = re.split(
+
+        rf"(?i)\b({labels})\s*:?\s*",
+
+        content
+
+    )
+
+
+
+    result = {}
+
+
+
+    for label, value in zip(
+
+        parts[1::2],
+
+        parts[2::2]
+
+    ):
+
+
+        value = clean(
+            value
+        )
+
+
+        if value:
+
+            result[
+                label.lower()
+            ] = value
+
+
+
+    return result
+
+
+
+
+
+def _first_section(
+        sections,
+        *labels
+):
+
+
+    for label in labels:
+
+
+        value = sections.get(
+
+            label.lower(),
+
+            ""
+
+        )
+
+
+        if value:
+
+            return value
+
+
+
+    return ""
+
+
+
+
+
+def extract_from_text(
+        text,
+        keywords
+):
+
+
+    output = []
+
+
+
+    for keyword in keywords:
+
+
+        pattern = (
+
+            rf"{keyword}"
+
+            r"\s*[:\-]?\s*"
+
+            r"(.*?)(?="
+
+            r"Clinical Focus|"
+
+            r"Field of Specialization|"
+
+            r"Professional Membership|"
+
+            r"Publications|"
+
+            r"Research|"
+
+            r"Awards|"
+
+            r"Honors|"
+
+            r"$)"
+
+        )
+
+
+        match = re.search(
+
+            pattern,
+
+            text,
+
+            re.I | re.S
+
+        )
+
+
+
+        if match:
+
+
+            value = clean(
+
+                match.group(1)
+
+            )
+
+
+            if value:
+
+                output.append(
+                    value
+                )
+
+
+
+    return ", ".join(
+        list(set(output))
+    )
+
+
+
+
+
+def extract_fallback_from_text(page_text):
+
+    """
+    Level-3 fallback: when labelled sections are missing entirely,
+    pull qualification / experience / expertise / languages straight
+    out of the raw profile text using patterns commonly seen on
+    unlabelled Artemis doctor pages.
+    """
+
+    data = {}
+
+
+    # Qualification fallback
+
+    qualification_patterns = [
+
+        r"(MBBS.*?(?:MD|MS|DM|MCh|DNB).*?)(?=\s+\d+\s+years|\s+Experience|$)",
+
+        r"(Bachelor.*?(?:Medicine|Surgery).*?)",
+
+        r"(MD.*?)(?=\s+\d+\s+years|$)",
+
+        r"(MS.*?)(?=\s+\d+\s+years|$)",
+
+        r"(DM.*?)(?=\s+\d+\s+years|$)"
+
+    ]
+
+
+    for pattern in qualification_patterns:
+
+        match = re.search(
+            pattern,
+            page_text,
+            re.I
+        )
+
+        if match:
+
+            data["qualification"] = normalize_text(
+                match.group()
+            )
+
+            break
+
+
+
+    # Experience fallback
+
+    exp_match = re.search(
+
+        r"(\d+\+?\s*(?:years?|yrs?)(?:\s+of\s+experience)?)",
+
+        page_text,
+
+        re.I
+
+    )
+
+
+    if exp_match:
+
+        data["experience"] = normalize_text(
+            exp_match.group()
+        )
+
+
+
+    # Expertise fallback
+
+    expertise_keywords = [
+
+        "Clinical Focus",
+
+        "Special Interest",
+
+        "Area of Interest",
+
+        "Expertise",
+
+        "Specialization"
+
+    ]
+
+
+    for keyword in expertise_keywords:
+
+
+        pattern = (
+
+            keyword +
+
+            r"\s*[:\-]?\s*(.*?)(?=\s+(?:Awards|Membership|Experience|Education)|$)"
+
+        )
+
+
+        match = re.search(
+
+            pattern,
+
+            page_text,
+
+            re.I
+
+        )
+
+
+        if match:
+
+
+            data["expertise"] = normalize_text(
+
+                match.group(1)
+
+            )
+
+            break
+
+
+
+    # Languages fallback
+
+
+    language_match = re.search(
+
+        r"(Languages?|Languages Spoken)\s*[:\-]?\s*(.*?)(?=\s+(?:Awards|Experience|Qualification)|$)",
+
+        page_text,
+
+        re.I
+
+    )
+
+
+    if language_match:
+
+
+        data["languages"] = normalize_text(
+
+            language_match.group(2)
+
+        )
+
+
+    return data
+
+
+
+
+
+def extract_procedures(text):
+
+
+    keywords = [
+
+        "Angioplasty",
+
+        "Replacement",
+
+        "Transplant",
+
+        "Surgery",
+
+        "Surgical",
+
+        "Procedure",
+
+        "Treatment",
+
+        "Arthroplasty"
+
+    ]
+
+
+
+    found = []
+
+
+
+    for sentence in text.split("."):
+
+
+        for word in keywords:
+
+
+            if word.lower() in sentence.lower():
+
+                found.append(
+                    clean(sentence)
+                )
+
+
+
+    return ", ".join(
+
+        list(set(found[:10]))
+
+    )
+
+
+
+
+
+def extract_publications(text):
+
+
+    patterns = [
+
+        r"\d+\+?\s*Scientific publications",
+
+        r"\d+\+?\s*publications",
+
+        r"Published.*",
+
+        r"Research.*"
+
+    ]
+
+
+
+    for pattern in patterns:
+
+
+        match = re.search(
+
+            pattern,
+
+            text,
+
+            re.I
+
+        )
+
+
+        if match:
+
+            return clean(
+                match.group()
+            )
+
+
+
+    return ""
+def scrape_doctor_profile(
+        profile_url,
+        session=None
+):
+
+
+    result = dict.fromkeys(
+        PROFILE_FIELDS,
+        ""
+    )
+
+
+    result["hospital_name"] = (
+        "Artemis Hospitals"
+    )
+
+
+    html_content = fetch_profile_html(
+        profile_url,
+        session=session
+    )
+
+
+    if not html_content:
+
+        return result
+
+
+
+    soup = BeautifulSoup(
+        html_content,
+        "html.parser"
+    )
+
+
+    page_text = clean(
+        soup.get_text(
+            " ",
+            strip=True
+        )
+    )
+
+
+    text_fallback = extract_fallback_from_text(
+        page_text
+    )
+
+
+    sections = _content_sections(
+        soup
+    )
+
+
+
+    # JSON-LD
+
+    result.update(
+        extract_jsonld(
+            soup
+        )
+    )
+
+
+
     # -------------------------
-    # DOCTOR NAME (used for photo matching)
+    # Doctor Name
     # -------------------------
 
-    h1 = soup.find("h1")
-    doctor_name = clean(h1.get_text()) if h1 else ""
+    result["doctor_name"] = _clean_name(
+
+        find_text_by_id_suffix(
+            soup,
+            "LabelName"
+        )
+
+        or
+
+        find_text_by_class(
+            soup,
+            "h1"
+        )
+
+        or
+
+        get_meta(
+            soup,
+            prop="og:title"
+        )
+
+        or
+
+        result["doctor_name"]
+
+    )
+
+
 
     # -------------------------
-    # JSON-LD (photo, summary, department)
+    # Designation
     # -------------------------
 
-    result.update(extract_jsonld(soup))
+    result["designation"] = (
+
+        find_text_by_id_suffix(
+            soup,
+            "LabelDesignation"
+        )
+
+        or
+
+        find_text_by_id_suffix(
+            soup,
+            "LabelDepartment"
+        )
+
+        or
+
+        _section_text(
+            soup,
+            "Designation"
+        )
+
+    )
+
+
+
+    result["designation"] = clean(
+        result["designation"]
+    )
+
+
 
     # -------------------------
-    # PROFILE PHOTO
+    # Department
     # -------------------------
 
-    if not result["profile_photo"]:
-        result["profile_photo"] = extract_profile_photo(soup, doctor_name)
+    department = (
 
-    text = soup.get_text("\n", strip=True)
-
-    # -------------------------
-    # DESIGNATION
-    # -------------------------
-
-    result["designation"] = find_text_by_id_suffix(soup, "LabelDepartment")
-
-    if not result["designation"]:
-
-        designation_patterns = [
-            r"Senior\s+Consultant.*",
-            r"Sr\.\s*Consultant.*",
-            r"Associate\s+Consultant.*",
-            r"Consultant.*",
-            r"Chief\s+Consultant.*",
-            r"Professor.*",
-            r"Head.*"
-        ]
-
-        for pattern in designation_patterns:
-
-            m = re.search(pattern, text, re.IGNORECASE)
-
-            if m:
-                value = clean(m.group())
-                if "Board of Directors" not in value:
-                    result["designation"] = value
-                    break
-
-    # -------------------------
-    # DEPARTMENT / SPECIALITY
-    # -------------------------
-
-    specialty_value = find_text_by_id_suffix(soup, "LabelSpecialtyValue")
-
-    if specialty_value:
-        result["department"] = specialty_value
-
-    elif not result["department"]:
-
-        department = get_field(soup, [
-            "Speciality",
-            "Specialty",
+        _first_section(
+            sections,
             "Department",
-            "Area of Specialization",
-            "Specialization",
-            "Medical Specialty"
-        ])
+            "Speciality",
+            "Specialty"
+        )
 
-        if department and len(department) < 100:
-            result["department"] = department
+        or
+
+        _section_text(
+            soup,
+            "Department",
+            "Speciality",
+            "Specialty"
+        )
+
+    )
+
+
+
+    department = clean_department_value(
+        department
+    )
+
+
+    if department in [
+
+        "",
+        "Designation",
+        "Designation:"
+
+    ]:
+
+        department = clean_department_value(
+            result["designation"]
+        )
+
+
+
+    result["department"] = department
+
+
+    result["specialty"] = department
+
+
 
     # -------------------------
-    # PROFILE CONTENT BLOCK
-    # (Qualifications / Experience / Procedures / Clinical Focus /
-    #  Memberships / Awards all usually live inside this one block)
+    # Qualification
     # -------------------------
 
-    content_el = find_element_by_id_suffix(soup, "LabelContent")
-    parsed = {}
+    result["qualification"] = (
 
-    if content_el:
-        content_text = content_el.get_text("\n", strip=True)
-        parsed = parse_profile_content(content_text)
-
-    # -------------------------
-    # QUALIFICATION
-    # -------------------------
-
-    result["qualification"] = get_from_parsed(parsed, "qualifications", "qualification")
-
-    if not result["qualification"]:
-
-        result["qualification"] = get_field(soup, [
+        _first_section(
+            sections,
             "Qualifications",
             "Qualification",
             "Education",
-            "Academic Qualifications",
-            "Educational Qualification"
-        ])
+            "Educational Qualification",
+            "Academic Qualification",
+            "Medical Education",
+            "Degrees"
+        )
+
+        or
+
+        _section_text(
+            soup,
+            "LabelQualification",
+            "Qualifications",
+            "Qualification",
+            "Education",
+            "Education Qualification"
+        )
+
+    )
+
 
     if not result["qualification"]:
 
-        degrees = [
-            "MBBS", "MD", "MS", "DM", "MCh", "DNB", "FRCS", "MRCP", "FACP", "PhD"
-        ]
+        result["qualification"] = text_fallback.get(
+            "qualification",
+            ""
+        )
 
-        found = []
-        full_text = soup.get_text(" ", strip=True)
 
-        for degree in degrees:
-            if degree in full_text:
-                found.append(degree)
-
-        result["qualification"] = ", ".join(sorted(set(found)))
 
     # -------------------------
-    # EXPERIENCE
+    # Experience
     # -------------------------
 
-    result["experience"] = get_field(
-    soup,
-    [
-        "Years of Experience",
-        "Experience",
-        "Work Experience",
-        "Total Experience",
-        "Professional Experience"
-    ]
-)
+    result["experience"] = (
+
+        _first_section(
+            sections,
+            "Years of Experience",
+            "Work Experience",
+            "Professional Experience",
+            "Clinical Experience",
+            "Experience"
+        )
+
+        or
+
+        _section_text(
+            soup,
+            "Experience",
+            "WorkExperience",
+            "Years"
+        )
+
+    )
+
+
+
     if not result["experience"]:
-        result["experience"] = ""
-    
-    
-    experience_match = re.search(
-    r"(\d+\+?\s*(?:years|yrs))",
-    result["experience"],
-    re.IGNORECASE
-)
-    
-    if experience_match:
 
-        result["experience"] = clean(
-        experience_match.group(1)
-    )
-    else:
-        experience_match = re.search(
-        r"(\d+\+?\s*(?:years|yrs))",
-        text,
-        re.IGNORECASE
-    )
-        if experience_match:
-            
+        match = re.search(
+
+            r"\b\d+\+?\s*(?:years?|yrs?)(?:\s+of\s+experience)?\b",
+
+            page_text,
+
+            re.I
+
+        )
+
+
+        if match:
 
             result["experience"] = clean(
-            experience_match.group(1)
+                match.group()
+            )
+
+
+
+    if not result["experience"]:
+
+        result["experience"] = text_fallback.get(
+            "experience",
+            ""
         )
-        else:
-            result["experience"] = ""
-            
+
+
 
     # -------------------------
-    # LANGUAGES
+    # Expertise
     # -------------------------
 
-    result["languages"] = find_text_by_id_suffix(soup, "LabelLanguagesValue")
+    result["expertise"] = (
 
-    if not result["languages"]:
-        result["languages"] = get_from_parsed(parsed, "languages", "languages spoken")
+        _first_section(
+            sections,
+            "Areas of Expertise",
+            "Area of Interest",
+            "Clinical Focus",
+            "Special Interest",
+            "Expertise",
+            "Specialization",
+            "Field of Expertise"
+        )
 
-    if not result["languages"]:
+        or
 
-        result["languages"] = get_field(soup, [
-            "Languages Spoken",
-            "Languages Known",
-            "Languages",
-            "Language"
-        ])
+        _section_text(
+            soup,
+            "Expertise",
+            "ClinicalFocus",
+            "SpecialInterest"
+        )
 
-    # -------------------------
-    # EXPERTISE / CLINICAL FOCUS
-    # -------------------------
+        or
 
-    result["expertise"] = get_from_parsed(
-        parsed, "clinical focus", "areas of expertise", "area of expertise", "expertise"
+        extract_from_text(
+            page_text,
+            [
+                "Clinical Focus",
+                "Field of Specialization",
+                "Special Interest",
+                "Expertise"
+            ]
+        )
+
     )
+
 
     if not result["expertise"]:
 
-        result["expertise"] = get_field(soup, [
-            "Areas of Expertise",
-            "Area of Expertise",
-            "Clinical Focus",
-            "Areas of Interest",
-            "Area of Interest",
-            "Special Interest",
-            "Key Expertise",
-            "Expertise"
-        ])
+        result["expertise"] = text_fallback.get(
+            "expertise",
+            ""
+        )
+
+
 
     # -------------------------
-    # PROCEDURES PERFORMED
+    # Procedures
     # -------------------------
 
-    result["procedures_performed"] = clean_markdown(
-        get_field(
-            soup,
-            [    
-        "procedures performed",
-        "key procedures",
-            "surgical procedures",
-        "procedures"]
+    result["procedures_performed"] = (
+
+        _first_section(
+            sections,
+            "Procedures",
+            "Procedures Performed"
+        )
+
+        or
+
+        extract_procedures(
+            page_text
+        )
+
     )
-)
+
+
+
     # -------------------------
-    # PROFESSIONAL MEMBERSHIPS
+    # Membership
     # -------------------------
 
-    result["professional_memberships"] = clean_markdown(
-    get_from_parsed(
-        parsed,
-        "professional memberships",
-        "memberships"
-    )
-)
+    result["professional_memberships"] = (
 
-    if not result["professional_memberships"]:
-
-        result["professional_memberships"] = get_field(soup, [
+        _first_section(
+            sections,
             "Professional Memberships",
             "Memberships",
+            "Membership"
+        )
+
+        or
+
+        _section_text(
+            soup,
             "Membership",
-            "Affiliations",
-            "Professional Affiliations"
-        ])
+            "Association"
+        )
 
-    # -------------------------
-    # AWARDS
-    # -------------------------
-
-    result["awards"] = get_from_parsed(
-        parsed, "honors and awards", "honours and awards", "awards"
     )
 
-    if not result["awards"]:
 
-        result["awards"] = get_field(soup, [
-            "Awards",
-            "Awards & Recognition",
-            "Awards and Recognition",
-            "Achievements",
-            "Honours",
-            "Honors"
-        ])
 
     # -------------------------
-    # PUBLICATIONS
+    # Languages
     # -------------------------
 
-    result["publications"] = get_from_parsed(parsed, "publications", "research publications")
+    result["languages"] = (
 
-    if not result["publications"]:
+        _section_text(
+            soup,
+            "LabelLanguagesValue",
+            "Languages",
+            "Language",
+            "Languages Spoken"
+        )
 
-        result["publications"] = get_field(soup, [
+        or
+
+        _first_section(
+            sections,
+            "Languages",
+            "Languages Spoken"
+        )
+
+    )
+
+
+    if not result["languages"]:
+
+        result["languages"] = text_fallback.get(
+            "languages",
+            ""
+        )
+
+
+
+    # -------------------------
+    # Publications
+    # -------------------------
+
+    result["publications"] = (
+
+        _first_section(
+            sections,
             "Publications",
-            "Publication",
-            "Research Publications",
-            "Papers Published"
-        ])
+            "Research Publications"
+        )
 
-    if not result["publications"]:
-        # Some profiles bury a publications mention inside the Awards text
-        pub_text, _ = split_publications_from_awards(result["awards"])
-        if pub_text:
-            result["publications"] = pub_text
+        or
 
-    # -------------------------
-    # CONSULTATION LOCATION
-    # -------------------------
+        extract_publications(
+            page_text
+        )
 
-    result["consultation_location"] = find_text_by_id_suffix(soup, "LabelLocationValue")
+    )
 
-    if not result["consultation_location"]:
 
-        result["consultation_location"] = get_field(soup, [
-            "Consultation Location",
-            "Consultation Timings",
-            "Available At",
-            "Hospital Location",
-            "Location"
-        ])
 
     # -------------------------
-    # SUMMARY
+    # Awards
     # -------------------------
 
-    if not result["summary"]:
+    result["awards"] = (
 
-        paragraphs = soup.find_all("p")
-        longest = ""
+        _first_section(
+            sections,
+            "Awards",
+            "Honors and Awards",
+            "Honours and Awards"
+        )
 
-        for p in paragraphs:
-            txt = clean(p.get_text())
-            if len(txt) > len(longest):
-                longest = txt
+        or
 
-        result["summary"] = longest
+        extract_from_text(
+            page_text,
+            [
+                "Awards",
+                "Honors",
+                "Achievements",
+                "Recognition",
+                "Commendation"
+            ]
+        )
+
+    )
+
+
 
     # -------------------------
-    # CLEAN EMPTY VALUES
+    # Summary
     # -------------------------
 
-    for key, value in result.items():
-        if value is None:
-            result[key] = ""
+    result["summary"] = (
 
-    print("\n==========================")
-    print(profile_url)
-    print(result)
-    print("==========================\n")
+        get_meta(
+            soup,
+            prop="og:description"
+        )
 
-    return result
+        or
+
+        _first_section(
+            sections,
+            "Brief Profile"
+        )
+
+        or
+
+        _section_text(
+            soup,
+            "Brief Profile",
+            "Profile"
+        )
+
+    )
+
+
+
+    # -------------------------
+    # Consultation Location
+    # -------------------------
+
+    result["consultation_location"] = (
+        "Artemis Hospitals, Gurgaon"
+    )
+
+
+
+    # -------------------------
+    # Profile Image
+    # -------------------------
+
+    photo = ""
+
+
+    for img in soup.find_all(
+        "img",
+        src=True
+    ):
+
+
+        src = img.get(
+            "src",
+            ""
+        )
+
+
+        src_lower = src.lower()
+
+
+
+        if (
+
+            "doctor" in src_lower
+
+            or
+
+            "doctors/photos" in src_lower
+
+            or
+
+            "sitefiles/doctors" in src_lower
+
+        ):
+
+            photo = src
+
+            break
+
+
+
+    result["profile_photo"] = (
+
+        photo
+
+        or
+
+        get_meta(
+            soup,
+            prop="og:image"
+        )
+
+    )
+
+
+
+    result["profile_photo"] = urljoin(
+
+        BASE_URL + "/",
+
+        result["profile_photo"]
+
+    )
+
+
+
+    return {
+
+        key: clean(value)
+
+        for key, value in result.items()
+
+    }

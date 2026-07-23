@@ -1,81 +1,328 @@
-import re
+import requests
 from bs4 import BeautifulSoup
 
-BASE_URL = "https://www.artemishospitals.com"
+from config.config_loader import load_config
+
+
+config = load_config()
+
+
+BASE_URL = config["base_url"]
+
+HOSPITAL_ID = config["hospital"]["id"]
+
+HOSPITAL_NAME = config["hospital"].get(
+    "name",
+    "Artemis Hospitals"
+)
+
+
+DOCTOR_API = (
+    BASE_URL +
+    "/common.aspx/AllDoctorsAndSpecialityListForIndex"
+)
+
+
+REQUEST_CONFIG = config["request"]
+
+
+
+def clean(text):
+
+    if not text:
+        return ""
+
+    return " ".join(
+        text.replace(
+            "\xa0",
+            " "
+        ).split()
+    )
+
+
+
 
 
 def scrape_doctors():
-    with open("output/page.html", "r", encoding="utf-8") as f:
-        html = f.read()
 
-    # Extract HTML from JavaScript
-    match = re.search(
-        r"container\.innerHTML\s*=\s*`(.*?)`;",
-        html,
-        re.DOTALL
-    )
+    """
+    Fetch all doctors from Artemis API.
+    Returns only valid doctor profile URLs.
+    """
 
-    if not match:
-        print("❌ Doctor HTML block not found.")
+
+
+    headers = {
+
+        "Content-Type":
+        "application/json; charset=utf-8",
+
+        "User-Agent":
+        REQUEST_CONFIG["user_agent"]
+
+    }
+
+
+
+    payload = {
+
+        "prefix": ""
+
+    }
+
+
+
+    try:
+
+        response = requests.post(
+
+            DOCTOR_API,
+
+            headers=headers,
+
+            json=payload,
+
+            timeout=REQUEST_CONFIG["timeout"]
+
+        )
+
+
+    except requests.RequestException as e:
+
+
+        print(
+            "❌ Doctor API Error:",
+            e
+        )
+
         return []
 
-    doctor_html = match.group(1)
 
-    soup = BeautifulSoup(doctor_html, "html.parser")
 
-    cards = soup.select("div.doctor-container")
 
-    print(f"Total doctor cards: {len(cards)}")
 
-    # Debug
-    names = [
-        c.select_one(".name").get_text(strip=True)
-        for c in cards
-        if c.select_one(".name")
-    ]
+    if response.status_code != 200:
 
-    print("Total names extracted:", len(names))
-    print("Unique names:", len(set(names)))
 
-    duplicates = {}
-    for name in names:
-        duplicates[name] = duplicates.get(name, 0) + 1
+        print(
 
-    dup_names = {k: v for k, v in duplicates.items() if v > 1}
+            "❌ Doctor API failed:",
+            response.status_code
 
-    if dup_names:
-        print("\nDuplicate Doctors:")
-        for name, count in dup_names.items():
-            print(f"{name} -> {count}")
-    else:
-        print("\nNo duplicate doctor names found.")
+        )
+
+        return []
+
+
+
+
+
+    data = response.json()
+
+
+    doctors_html = data.get(
+        "d",
+        []
+    )
+
+
+
+    print(
+        "API doctors received:",
+        len(doctors_html)
+    )
+
+
 
     doctors = []
 
-    for i, card in enumerate(cards, start=1):
+    seen_urls = set()
 
-        name = card.select_one(".name")
-        specialty = card.select_one(".specialty")
 
-        profile_url = ""
-        appointment_url = ""
+    doctor_id = 1
 
-        for a in card.select("a[href]"):
-            href = a.get("href", "")
 
-            if "/doctor/profile/" in href:
-                profile_url = BASE_URL + href
 
-            elif "/make-an-apointment" in href:
-                appointment_url = BASE_URL + href
+    for item in doctors_html:
+
+
+        soup = BeautifulSoup(
+
+            item,
+
+            "html.parser"
+
+        )
+
+
+        anchor = soup.find(
+            "a"
+        )
+
+
+
+        if not anchor:
+
+            continue
+
+
+
+        href = anchor.get(
+            "href",
+            ""
+        )
+
+
+
+        if not href:
+
+            continue
+
+
+
+        href_lower = href.lower()
+
+
+
+        # Only doctor profiles
+
+        if "/doctor/profile/" not in href_lower:
+
+            continue
+
+
+
+
+        profile_url = (
+
+            BASE_URL + href
+
+            if href.startswith("/")
+
+            else href
+
+        )
+
+
+
+        profile_url = profile_url.strip()
+
+
+
+        # Remove Raipur profiles
+
+        if "/raipur/" in profile_url.lower():
+
+            continue
+
+
+
+        # Remove duplicate URLs
+
+        if profile_url in seen_urls:
+
+            continue
+
+
+
+        seen_urls.add(
+            profile_url
+        )
+
+
+
+        doctor_name = clean(
+
+            anchor.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
+        )
+
+
+
+        doctor_name = doctor_name.replace(
+
+            "[Doctor]",
+
+            ""
+
+        ).strip()
+
+
+
+        # Remove invalid entries
+
+        if not doctor_name:
+
+            continue
+
+
+
+        if not doctor_name.lower().startswith(
+
+            ("dr.", "dr ")
+
+        ):
+
+            continue
+
+
+
 
         doctors.append({
-            "doctor_id": i,
-            "hospital_id": 1,
-            "doctor_name": name.get_text(strip=True) if name else "",
-            "specialty": specialty.get_text(strip=True) if specialty else "",
-            "profile_url": profile_url,
-            "appointment_url": appointment_url,
+
+            "doctor_id":
+
+                doctor_id,
+
+
+            "hospital_id":
+
+                HOSPITAL_ID,
+
+
+            "hospital_name":
+
+                HOSPITAL_NAME,
+
+
+            "doctor_name":
+
+                doctor_name,
+
+
+            "specialty":
+
+                "",
+
+
+            "profile_url":
+
+                profile_url
+
+
         })
+
+
+
+        doctor_id += 1
+
+
+
+
+    print(
+
+        "Total doctors extracted:",
+
+        len(doctors)
+
+    )
+
+
 
     return doctors

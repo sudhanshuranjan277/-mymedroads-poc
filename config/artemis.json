@@ -9,7 +9,7 @@
     "urls": {
         "home": "https://www.artemishospitals.com/",
         "about": "https://www.artemishospitals.com/about-us/for-patients",
-        "doctor_listing": "https://www.artemishospitals.com/doctors",
+        "doctor_listing": "https://www.artemishospitals.com/doctor",
         "doctor_profile_prefix": "https://www.artemishospitals.com"
     },
 
@@ -25,71 +25,43 @@
         "hospital": {
 
             "name": "",
-
             "overview": "",
-
             "address": "",
-
             "phone": "",
-
             "email": "",
-
             "website": "",
-
             "beds": "",
-
             "accreditations": "",
-
             "centres_of_excellence": "",
-
             "international_patients": "",
-
             "awards": "",
-
             "images": ""
         },
 
         "doctor_list": {
 
             "card": "",
-
             "name": "",
-
             "profile_url": "",
-
             "image": ""
         },
 
         "doctor_profile": {
 
             "name": "",
-
             "designation": "",
-
             "department": "",
-
             "speciality": "",
-
             "qualification": "",
-
             "experience": "",
-
             "expertise": "",
-
             "procedures": "",
-
             "memberships": "",
-
             "languages": "",
-
             "publications": "",
-
             "awards": "",
-
             "summary": "",
-
             "photo": "",
-
             "consultation_location": ""
         }
     }
