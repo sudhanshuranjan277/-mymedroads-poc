@@ -1,53 +1,90 @@
 # Technical Documentation
 
-## Project Name
-
-MyMedRoads POC - Hospital & Doctor Data Scraper
+# MyMedRoads POC - Hospital & Doctor Data Extraction Pipeline
 
 
-# 1. Introduction
+## 1. Introduction
 
-MyMedRoads POC is a Python-based web scraping system designed to extract structured healthcare information from hospital websites.
+MyMedRoads POC is a Python-based healthcare data extraction pipeline designed to collect structured hospital and doctor information from healthcare websites.
 
-The system collects hospital-level information and detailed doctor profiles, processes the extracted data, validates the records, and exports the final dataset into CSV, JSON, and SQL formats.
+The objective of this project is to automate the extraction of healthcare directory information and transform unstructured website content into clean, normalized, and import-ready datasets.
+
+The pipeline performs:
+
+- Web data extraction
+- HTML parsing
+- Data cleaning
+- Data normalization
+- Data validation
+- Multi-format export
 
 
----
+The final processed data is generated in:
 
-# 2. System Architecture
-
-The project follows a modular architecture.
-
-            Website
-               |
-               |
-        Web Scraping Layer
-               |
-    -------------------------
-    |                       |
-
-Hospital Scraper Doctor Scraper
-|
-|
-Doctor Profile Scraper
-|
-|
-Data Processing
-|
-|
-Validation Layer
-|
-|
-Export Layer
--------------------------
-| | |
-CSV JSON SQL
-
+- CSV format
+- JSON format
+- SQL format
 
 
 ---
 
-# 3. Technology Stack
+# 2. Project Objective
+
+The primary objectives of this POC are:
+
+- Extract hospital-level information
+- Extract detailed doctor profile information
+- Maintain a consistent data schema
+- Validate extracted records
+- Generate datasets suitable for healthcare platforms like MyMedRoads
+
+
+---
+
+# 3. System Architecture
+
+
+```
+                    Hospital Website
+                           |
+                           |
+                  Web Scraping Layer
+                           |
+        ---------------------------------------
+        |                                     |
+ Hospital Scraper                    Doctor Listing Scraper
+        |                                     |
+        |                                     |
+        |                          Doctor Profile Scraper
+        |                                     |
+        ---------------------------------------
+                           |
+                           |
+                  Data Processing Layer
+                           |
+                           |
+                  Validation Layer
+                           |
+                           |
+                   Export Layer
+             -----------------------------
+             |             |             |
+            CSV           JSON          SQL
+
+```
+
+
+The overall workflow follows an ETL architecture:
+
+```
+Extract  →  Transform  →  Validate  →  Export
+```
+
+
+---
+
+# 4. Technology Stack
+
 
 ## Programming Language
 
@@ -56,309 +93,253 @@ CSV JSON SQL
 
 ## Libraries Used
 
+
 ### Requests
 
-Used for sending HTTP requests and fetching webpage content.
+Used for:
+
+- Sending HTTP requests
+- Fetching webpage content
+- Handling communication with source websites
 
 
 ### BeautifulSoup4
 
-Used for parsing HTML documents and extracting required information.
+Used for:
+
+- HTML parsing
+- Extracting structured information
+- Navigating webpage elements
+
+
+### Pandas
+
+Used for:
+
+- Data processing
+- Dataset validation
+- CSV generation
 
 
 ### Regular Expressions (Regex)
 
-Used for pattern-based extraction such as:
+Used for:
 
-- Experience years
-- Cleaning text fields
+- Pattern matching
+- Experience extraction
+- Text cleaning
 
 
-### CSV / JSON
+### Dataclasses
 
-Used for exporting structured data.
+Used for:
+
+- Maintaining structured data models
+- Creating consistent object schemas
 
 
 ---
 
-# 4. Project Modules
+# 5. Project Structure
 
 
-## 4.1 Hospital Scraper
+```
+mymedroads-poc
+
+│
+├── main.py
+├── validation.py
+├── requirements.txt
+│
+├── config
+│
+├── scraper
+│   ├── hospital_scraper.py
+│   ├── doctor_scraper.py
+│   ├── doctor_profile_scraper.py
+│   ├── parser.py
+│   └── utils.py
+│
+├── models
+│   ├── hospital.py
+│   └── doctor.py
+│
+├── exporter
+│   ├── csv_export.py
+│   ├── json_export.py
+│   └── sql_export.py
+│
+├── docs
+│
+└── output
+
+```
+
+
+---
+
+# 6. Scraping Modules
+
+
+## 6.1 Hospital Scraper
+
 
 File:
 
-
+```
 scraper/hospital_scraper.py
+```
 
 
 Responsibilities:
 
-- Extract hospital information
-- Parse hospital overview
+- Extract hospital details
+- Extract location information
+- Extract address
 - Extract contact details
-- Extract centres of excellence
+- Extract website information
+- Extract hospital overview
+- Extract accreditations
+- Extract infrastructure details
 - Extract emergency services
-- Extract images
+- Extract international patient services
+- Extract hospital images
+- Extract awards
 
 
 Output:
 
-Hospital structured object.
+Structured hospital data object.
 
 
 ---
 
-## 4.2 Doctor Listing Scraper
+## 6.2 Doctor Listing Scraper
+
 
 File:
 
-
+```
 scraper/doctor_scraper.py
+```
 
 
 Responsibilities:
 
-- Extract doctor listing page data
+- Extract doctor listing pages
 - Collect doctor names
 - Collect specialties
 - Collect profile URLs
-- Collect appointment URLs
+- Collect available appointment links
 
 
 Output:
 
-List of doctors with basic information.
+Basic doctor information list.
 
 
 ---
 
-## 4.3 Doctor Profile Scraper
+## 6.3 Doctor Profile Scraper
+
 
 File:
 
-
+```
 scraper/doctor_profile_scraper.py
+```
 
 
 Responsibilities:
 
 Extract detailed doctor information:
 
+
+- Doctor Name
 - Designation
 - Department
+- Specialty
 - Qualification
-- Experience
-- Languages
-- Expertise
-- Professional memberships
+- Years of Experience
+- Areas of Expertise
+- Procedures Performed
+- Professional Memberships
+- Languages Spoken
 - Publications
 - Awards
-- Consultation location
-- Profile summary
-- Doctor image
+- Consultation Location
+- Profile Summary
+- Profile Photograph
 
 
-Each doctor profile is processed individually.
+Each doctor profile is processed independently to avoid failure of the complete pipeline.
 
 
 ---
 
-# 5. Data Processing
+# 7. Data Processing and Cleaning
 
-Before exporting, extracted information is cleaned.
+
+Before exporting, extracted information is cleaned and normalized.
+
 
 Cleaning operations include:
 
-- Removing unwanted HTML characters
-- Removing markdown symbols
-- Removing extra spaces
-- Normalizing text format
+
+- Removing HTML entities
+- Removing unwanted whitespace
+- Removing empty formatting characters
+- Standardizing text format
+- Handling missing values
+- Maintaining consistent field structure
 
 
 Example:
 
+
 Before:
 
-
-||
-|
-
-
-After cleaning:
+```
+M.B.B.S.&nbsp; M.D
+```
 
 
-Empty string
+After:
 
-
-
----
-
-# 6. Validation System
-
-File:
-
-
-validation.py
-
-
-The validation module performs:
-
-
-## Doctor Validation
-
-Checks:
-
-- Total doctor count
-- Duplicate doctor names
-- Missing doctor names
-- Missing profile URLs
-- Required fields availability
-
-
-## Hospital Validation
-
-Checks:
-
-- Hospital name
-- Address
-- Website
-
-
-Validation is performed before exporting data.
+```
+M.B.B.S. M.D
+```
 
 
 ---
 
-# 7. Export System
+# 8. Data Models
 
 
-## CSV Export
-
-File:
+The project maintains structured schemas:
 
 
-exporter/csv_export.py
+## Doctor Model
 
-
-Generates:
-
-
-hospital.csv
-doctors.csv
-
-
-
-## JSON Export
-
-File:
-
-
-exporter/json_export.py
-
-
-Generates:
-
-
-data.json
-
-
-
-## SQL Export
-
-File:
-
-
-exporter/sql_export.py
-
-
-Generates:
-
-
-doctors.sql
-
-
-
----
-
-# 8. Execution Flow
-
-
-The complete execution pipeline:
-
-
-main.py
-
-|
-|
-
-Scrape Hospital Data
-
-|
-|
-
-Scrape Doctor Listing
-
-|
-|
-
-Scrape Doctor Profiles
-
-|
-|
-
-Validate Extracted Data
-
-|
-|
-
-Export Final Dataset
-
-
-
----
-
-# 9. Error Handling
-
-The scraper handles:
-
-- Failed profile requests
-- Missing fields
-- Empty values
-- Incomplete information
-
-
-If a doctor profile fails, the pipeline continues processing remaining doctors.
-
-
----
-
-# 10. Output Schema
-
-The generated doctor dataset contains:
+Contains:
 
 - Doctor ID
 - Hospital ID
 - Doctor Name
 - Specialty
-- Profile URL
-- Appointment URL
-- Designation
-- Department
 - Qualification
 - Experience
-- Languages
 - Expertise
 - Procedures
 - Memberships
 - Publications
 - Awards
-- Consultation Location
-- Summary
-- Profile Photo
+- Profile Information
 
 
-Hospital dataset contains:
+## Hospital Model
+
+Contains:
 
 - Hospital ID
 - Hospital Name
@@ -368,27 +349,297 @@ Hospital dataset contains:
 - Website
 - Overview
 - Services
+- Infrastructure
 - Images
 
 
 ---
 
-# 11. Future Improvements
+# 9. Validation System
 
-Possible improvements:
 
-- Database integration
-- API layer development
-- Automated scheduled scraping
-- Support for multiple hospitals
-- Better dynamic page handling
-- Cloud deployment
+File:
+
+```
+validation.py
+```
+
+
+The validation module ensures extracted data quality before export.
+
+
+## Doctor Validation
+
+
+Performed checks:
+
+
+```
+Total Doctors Extracted : 163
+
+Duplicate Names         : 0
+
+Missing Doctor Names    : 0
+
+Missing Profile URLs    : 0
+```
+
+
+Field validation:
+
+
+```
+doctor_name        PASS
+designation        PASS
+department         PASS
+qualification      PASS
+summary            PASS
+profile_photo      PASS
+```
 
 
 ---
 
-# Conclusion
+## Hospital Validation
+
+
+Checks:
+
+
+- Hospital Name
+- Address
+- Website
+- Required information availability
+
+
+---
+
+# 10. Handling Missing Data
+
+
+The pipeline follows source-data availability rules.
+
+
+Not every doctor profile contains all optional information.
+
+Fields like:
+
+- Experience
+- Publications
+- Awards
+- Memberships
+- Languages
+
+
+may not be available for every profile.
+
+
+In such cases:
+
+- Empty values are preserved
+- No incorrect assumptions are generated
+- Data accuracy is maintained
+
+
+---
+
+# 11. Export System
+
+
+## CSV Export
+
+
+File:
+
+```
+exporter/csv_export.py
+```
+
+
+Generated files:
+
+
+```
+hospital.csv
+
+doctors.csv
+```
+
+
+
+---
+
+## JSON Export
+
+
+File:
+
+```
+exporter/json_export.py
+```
+
+
+Generated files:
+
+
+```
+data.json
+
+hospital.json
+```
+
+
+
+---
+
+## SQL Export
+
+
+File:
+
+```
+exporter/sql_export.py
+```
+
+
+Generated file:
+
+
+```
+doctors.sql
+```
+
+
+The SQL output can be directly used for database ingestion.
+
+
+---
+
+# 12. Execution Flow
+
+
+Complete pipeline execution:
+
+
+```
+main.py
+
+    |
+    ↓
+
+Extract Hospital Data
+
+    |
+    ↓
+
+Extract Doctor Listing
+
+    |
+    ↓
+
+Extract Doctor Profiles
+
+    |
+    ↓
+
+Clean and Normalize Data
+
+    |
+    ↓
+
+Validate Records
+
+    |
+    ↓
+
+Generate CSV / JSON / SQL Files
+
+```
+
+
+---
+
+# 13. Error Handling
+
+
+The scraper handles:
+
+
+- Failed HTTP requests
+- Missing webpage elements
+- Empty fields
+- Incomplete doctor profiles
+- Parsing failures
+
+
+If one doctor profile fails, the remaining profiles continue processing.
+
+
+---
+
+# 14. Generated Output
+
+
+Final output directory:
+
+
+```
+output/
+
+├── hospital.csv
+├── doctors.csv
+├── hospital.json
+├── data.json
+├── doctors.sql
+└── validation_report.txt
+
+```
+
+
+---
+
+# 15. Limitations
+
+
+Current limitations:
+
+
+- Data availability depends on the source website
+- Some optional doctor fields may not exist
+- Website structure changes may require scraper updates
+- Dynamic content handling can be improved further
+
+
+---
+
+# 16. Future Improvements
+
+
+Possible enhancements:
+
+
+- Database integration
+- REST API development
+- Scheduled automated scraping
+- Support for multiple hospitals
+- Cloud deployment
+- Incremental data updates
+- Monitoring dashboard
+
+
+---
+
+# 17. Conclusion
+
 
 The MyMedRoads POC successfully implements a complete healthcare data extraction pipeline.
 
-The system can scrape, validate, and export structured hospital and doctor information.
+The system is capable of:
+
+- Extracting hospital information
+- Extracting doctor profiles
+- Cleaning and validating healthcare data
+- Generating structured datasets
+
+
+The modular design allows future expansion into a production-ready healthcare directory platform.
